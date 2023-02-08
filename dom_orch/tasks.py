@@ -91,6 +91,32 @@ class DominoSchedRun(DominoTask):
     Schedule Jobs are used to set up the execution of a script in advance, and set them to execute on a regular cadence. 
     These can be useful when you have a data source that is updated regularly.
 
+    Parameters
+    ----------
+    task_id : str
+            Task name (unique id).
+    command : str
+            The command to execution as an array of strings where members of the array represent arguments of the command. For example: ["main.py", "hi mom"].
+    cron_string : str
+            crontab representation of the execution schedule
+
+            # ┌───────────── minute (0 - 59)
+            # │ ┌───────────── hour (0 - 23)
+            # │ │ ┌───────────── day of the month (1 - 31)
+            # │ │ │ ┌───────────── month (1 - 12)
+            # │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday;
+            # │ │ │ │ │                                   7 is also Sunday on some systems)
+            # │ │ │ │ │
+            # │ │ │ │ │
+            # * * * * * <command to execute>
+    title : str, default=task_id
+            A title for the execution.
+    tier : str
+            The hardware tier to use for the execution. This is the human-readable name of the hardware tier, such as "Free", "Small", or "Medium". 
+            If not provided, the project's default tier is used.
+    environment_id : str
+            The environment ID with which to launch the job. If not provided, the project's default environment is used.
+
     See Also
     --------
     DominoTask : The base class for all orchestrator tasks
@@ -99,34 +125,6 @@ class DominoSchedRun(DominoTask):
     """
 
     def __init__(self, task_id, command, cron_string, title=None, tier=None, environment_id=None):
-        """Creates a scheduled job task.
-
-        Parameters
-        ----------
-        task_id : str
-                Task name (unique id).
-        command : str
-                The command to execution as an array of strings where members of the array represent arguments of the command. For example: ["main.py", "hi mom"].
-        cron_string : str
-                crontab representation of the execution schedule
-
-                # ┌───────────── minute (0 - 59)
-                # │ ┌───────────── hour (0 - 23)
-                # │ │ ┌───────────── day of the month (1 - 31)
-                # │ │ │ ┌───────────── month (1 - 12)
-                # │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday;
-                # │ │ │ │ │                                   7 is also Sunday on some systems)
-                # │ │ │ │ │
-                # │ │ │ │ │
-                # * * * * * <command to execute>
-        title : str, default=task_id
-                A title for the execution.
-        tier : str
-                The hardware tier to use for the execution. This is the human-readable name of the hardware tier, such as "Free", "Small", or "Medium". 
-                If not provided, the project's default tier is used.
-        environment_id : str
-                The environment ID with which to launch the job. If not provided, the project's default environment is used.
-        """
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -224,6 +222,20 @@ class DominoRun(DominoTask):
     Jobs are a type of execution where an executor machine is assigned to execute a specified command in its OS shell. 
     You can use Jobs to run Python, R, or Bash scripts
 
+    Parameters
+    ----------
+    task_id : str
+            Task name (unique id).
+    command : str
+            The command to execution as an array of strings where members of the array represent arguments of the command. For example: ["main.py", "hi mom"].
+    is_Direct : bool, default=False
+            Whether this command should be passed directly to a shell
+    mas_retries : int, default=0
+            Number of maximum retries if the original run fails. Once max_retries is reached, the entire task is placed in a failed state.
+    tier : str
+            The hardware tier to use for the execution. This is the human-readable name of the hardware tier, such as "Free", "Small", or "Medium". 
+            If not provided, the project's default tier is used.
+
     See Also
     --------
     DominoTask : The base class for all orchestrator tasks
@@ -232,22 +244,6 @@ class DominoRun(DominoTask):
     """
 
     def __init__(self, task_id, command, isDirect=False, max_retries=0, tier=None):
-        """Creates a job task.
-
-        Parameters
-        ----------
-        task_id : str
-                Task name (unique id).
-        command : str
-                The command to execution as an array of strings where members of the array represent arguments of the command. For example: ["main.py", "hi mom"].
-        is_Direct : bool, default=False
-                Whether this command should be passed directly to a shell
-        mas_retries : int, default=0
-                Number of maximum retries if the original run fails. Once max_retries is reached, the entire task is placed in a failed state.
-        tier : str
-                The hardware tier to use for the execution. This is the human-readable name of the hardware tier, such as "Free", "Small", or "Medium". 
-                If not provided, the project's default tier is used.
-        """
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -310,6 +306,26 @@ class DominoModel(DominoTask):
     Domino Model APIs are REST API endpoints that run your Domino code. 
     These endpoints are automatically served and scaled by Domino to provide programmatic access to your R and Python data science code. 
 
+    Parameters
+    ----------
+    task_id : str
+            Task name (unique id).
+    file_name : str
+            Path to the file containing the model code.
+    function_name : str
+            The function to be called when the model handles a request
+    model_name: str
+            Name for the model (this is the name showed in the Model APIs view of the Domino UI)
+    description : str, default=""
+            Description of the model or summary of the changes in the new version.
+    model_id : str, default=None
+            If set, triggers the deployment of a new version of an existing Model API. The existing model is identified using the model_id value.
+            If not set, builds and deploys a brand new Model API.
+    environment_id : str, default=None
+            The unique id of the environment for the model to use. 
+            TODO: If no environment id is provided it defaults to the first globally available environment. This needs to be fixed. 
+                    It is better to fall back to the default project environment instead.
+
     See Also
     --------
     DominoTask : The base class for all orchestrator tasks
@@ -318,28 +334,6 @@ class DominoModel(DominoTask):
     """
 
     def __init__(self, task_id, file_name, function_name, model_name, description="", model_id=None, environment_id=None):
-        """Creates a Domino API task.
-
-        Parameters
-        ----------
-        task_id : str
-                Task name (unique id).
-        file_name : str
-                Path to the file containing the model code.
-        function_name : str
-                The function to be called when the model handles a request
-        model_name: str
-                Name for the model (this is the name showed in the Model APIs view of the Domino UI)
-        description : str, default=""
-                Description of the model or summary of the changes in the new version.
-        model_id : str, default=None
-                If set, triggers the deployment of a new version of an existing Model API. The existing model is identified using the model_id value.
-                If not set, builds and deploys a brand new Model API.
-        environment_id : str, default=None
-                The unique id of the environment for the model to use. 
-                TODO: If no environment id is provided it defaults to the first globally available environment. This needs to be fixed. 
-                      It is better to fall back to the default project environment instead.
-        """
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -459,6 +453,16 @@ class DominoApp(DominoTask):
     Note, that Domino allows for only one Domino App per project. If the project that the task operates on already has an App up and running
     the task will automatically unpublish it before replacing it with the new App.
 
+    Parameters
+    ----------
+    task_id : str
+            Task name (unique id).
+    app_name : str
+            Application name.
+    tier : str
+            The hardware tier to use for the deployed application. This is the human-readable name of the hardware tier, such as "Free", "Small", or "Medium". 
+            If not provided, the project's default tier is used.
+
     See Also
     --------
     DominoTask : The base class for all orchestrator tasks
@@ -467,18 +471,6 @@ class DominoApp(DominoTask):
     """
 
     def __init__(self, task_id, app_name, tier=None):
-        """Creates a Domino App task.
-
-        Parameters
-        ----------
-        task_id : str
-                Task name (unique id).
-        app_name : str
-                Application name.
-        tier : str
-                The hardware tier to use for the deployed application. This is the human-readable name of the hardware tier, such as "Free", "Small", or "Medium". 
-                If not provided, the project's default tier is used.
-        """
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
