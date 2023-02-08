@@ -18,8 +18,8 @@ def main():
     api = DominoAPISession.instance()
     
     # Parse config and build DAG
-    #dag_builder = DagBuilder("test_deploy.cfg")
-    dag_builder = DagBuilder("test_scheduled.cfg")
+    dag_builder = DagBuilder("test_deploy.cfg")
+    #dag_builder = DagBuilder("test_scheduled.cfg")
     dag = dag_builder.build_dag()
  
     # Show the DAG
@@ -38,12 +38,13 @@ def main():
  
     except RuntimeError as e:
       # TODO: Proper error handling
+      log.error("Pipeline execution failed.")
       raise
 
     """
     
     project_id = api.project_id
-    url = api._routes.host + "/" + project_id + "/scheduledJobs"
+    url = api._routes.host + "/v4/projects/" + project_id + "/scheduledjobs"
     url = "https://market4186.marketing-sandbox.domino.tech/v4/projects/63bc098ba111ce3c7f7ca892/scheduledjobs"
 
     request = {

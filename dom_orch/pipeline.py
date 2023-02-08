@@ -84,6 +84,11 @@ class Dag:
         # inspect graph, run statuses, allow_partial_failure to determine whether pipeline should continue
  
     def validate_dag(self):
+        """
+        TODO: Implement graph validation. Make sure that
+              * The graph is not cyclic
+              * All task names are unique
+        """
         pass
  
     def validate_run_command(self):
@@ -133,9 +138,8 @@ class PipelineRunner:
                 # Pipeline completed successfully
                 break
             elif pipeline_status == Dag.DAG_FAILED:
-                #for task_id, task in self.dag.get_tasks().items():
-                for task_id, task in failed_tasks:
-                    self.log.error("task_id: {0}\t status: {1}".format(task_id, task.status()))
+                #for task in failed_tasks:
+                #    self.log.error("Failed task detected. task_id: {0}\t status: {1}".format(task.task_id, task.status()))
                 raise RuntimeError("Pipeline Execution Failed")
             
             # Check for tasks
@@ -207,10 +211,10 @@ class DagBuilder:
                     isDirect = False
                 
                 command_str = c.get(task_id, "command")
-                if isDirect:
+                if isDirect or c.has_option(task_id, "cron_string"): 
                     command = [command_str]
                 else:
-                    command = command_str.split()             
+                    command = command_str.split()
 
                 # Retries required?
                 if c.has_option(task_id, "max_retries"):
