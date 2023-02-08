@@ -16,11 +16,9 @@ import logging
 import time
 
 from .api import DominoAPISession
-from .utils import get_hardware_tier_id
+from .helpers import get_hardware_tier_id, get_local_timezone
 from abc import abstractmethod
 from abc import ABCMeta
-
-
 
 
 class DominoTask(metaclass=ABCMeta):
@@ -33,7 +31,7 @@ class DominoTask(metaclass=ABCMeta):
     Parameters
     ----------
     task_id : str
-            Task name.
+            Task name (unique id).
     """
     STAT_UNSUBMITTED = "Unsubmitted"
     STAT_SUCCEEDED = "Succeeded"
@@ -46,6 +44,11 @@ class DominoTask(metaclass=ABCMeta):
     def __init__(self, task_id):
         self.task_id = task_id
         self._status = self.STAT_UNSUBMITTED
+
+        # By default all tasks are attempted only once
+        self.max_retries = 0
+        self.retries = 0
+
         self.domino_api = DominoAPISession.instance()
 
     @abstractmethod
@@ -62,26 +65,77 @@ class DominoTask(metaclass=ABCMeta):
 
     def set_status(self, status):
         """Sets the internal status of the task.
+
+        Parameters
+        ----------
+        status : {STAT_UNSUBMITTED, STAT_SUCCEEDED, STAT_INPROGRESS, STAT_FAILED}
+              Status of the current task.
         """
         assert status in self.VALID_STATES, "%s status is an Invalid state" % status
         self._status = status
 
     def is_complete(self):
-        """Checks the task status and returns true if it is STAT_SUCCEEDED
+        """Checks if the task has completed successfully
+
+        Returns
+        -------
+        True : if the task's internal status is STAT_SUCCEEDED
         """
         return self.status() == self.STAT_SUCCEEDED
 
 
 class DominoSchedRun(DominoTask):
+    """Handles Scheduled Jobs.
 
-    def __init__(self, task_id, command, cron_string, title=None, tier=None):
+    This class implements a task for scheduling Domino jobs. 
+    Schedule Jobs are used to set up the execution of a script in advance, and set them to execute on a regular cadence. 
+    These can be useful when you have a data source that is updated regularly.
+
+    See Also
+    --------
+    DominoTask : The base class for all orchestrator tasks
+
+    The `Scheduled Jobs <https://docs.dominodatalab.com/en/latest/user_guide/5dce1f/scheduled-jobs/>`_ section in the Domino Documentation.
+    """
+
+    def __init__(self, task_id, command, cron_string, title=None, tier=None, environment_id=None):
+        """Creates a scheduled job task.
+
+        Parameters
+        ----------
+        task_id : str
+                Task name (unique id).
+        command : str
+                The command to execution as an array of strings where members of the array represent arguments of the command. For example: ["main.py", "hi mom"].
+        cron_string : str
+                crontab representation of the execution schedule
+
+                # ┌───────────── minute (0 - 59)
+                # │ ┌───────────── hour (0 - 23)
+                # │ │ ┌───────────── day of the month (1 - 31)
+                # │ │ │ ┌───────────── month (1 - 12)
+                # │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday;
+                # │ │ │ │ │                                   7 is also Sunday on some systems)
+                # │ │ │ │ │
+                # │ │ │ │ │
+                # * * * * * <command to execute>
+        title : str, default=task_id
+                A title for the execution.
+        tier : str
+                The hardware tier to use for the execution. This is the human-readable name of the hardware tier, such as "Free", "Small", or "Medium". 
+                If not provided, the project's default tier is used.
+        environment_id : str
+                The environment ID with which to launch the job. If not provided, the project's default environment is used.
+        """
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
 
-        self.command = command
+        # the API expects a string here (scheduled jobs are always direct jobs)
+        self.command = command[0]
         self.tier = tier
         self.cron_string = cron_string
+        self.environment_id = environment_id
 
         # If no name is given for the scheduled job use the task_id instead
         if title:
@@ -101,19 +155,32 @@ class DominoSchedRun(DominoTask):
         return self.status() == self.STAT_SUCCEEDED
 
     def status(self):
+        # This is a blocking call - no need to poll for status.
         return self._status
 
-    def submit(self):   
-        self.log.info("-- Submitting scheduled job {0} --".format(self.task_id))
+    def submit(self):
+        response_json = None
+
+        self.log.info(
+            "-- Submitting scheduled job {0} --".format(self.task_id))
+        self.log.info("Title       : {}".format(self.title))
+        self.log.info("Command     : {}".format(self.command))
         if self.tier:
             self.log.info("Tier        : {}".format(self.tier))
-        #self.log.info("Environment : {}".format(self.environment_id))
-        #self.log.info("Function    : {}".format(self.function_name))
-        #self.log.info("File        : {}".format(self.file_name))
-        #self.log.info("Model name  : {}".format(self.model_name))
+        if self.environment_id:
+            self.log.info("Environment : {}".format(self.environment_id))
+        self.log.info("Cron string : {}".format(self.cron_string))
 
         tier_id = get_hardware_tier_id(self.tier)
-        print(tier_id)
+        project_id = self.domino_api.project_id
+
+        # Get the scheduling user's id
+        username = self.domino_api._routes._owner_username
+        user_id = self.domino_api.get_user_id(username)
+
+        # We need the local TZ for scheduling
+        local_tz = get_local_timezone()
+
         request = {
             "title": self.title,
             "command": self.command,
@@ -122,31 +189,65 @@ class DominoSchedRun(DominoTask):
                 "isCustom": True
             },
             "hardwareTierIdentifier": tier_id,
-            "environmentRevisionSpec":"ActiveRevision",
-            "notifyOnCompleteEmailAddresses":[],
-            "isPaused":False,
-            "timezoneId":"Europe/London",
-            "publishAfterCompleted":False,
-            "allowConcurrentExecution":False,
-            "scheduledByUserId": "6141ccfd0f08e1652cfad376",
+            # Always use the active revision of the CE
+            "environmentRevisionSpec": "ActiveRevision",
+            "notifyOnCompleteEmailAddresses": [],
+            "isPaused": False,
+            "timezoneId": local_tz,  # "Europe/London",
+            "publishAfterCompleted": False,
+            "allowConcurrentExecution": False,
+            "scheduledByUserId": user_id,
+            "overrideEnvironmentId": self.environment_id
         }
 
-        input("GGG")
+        try:
+            url = self.domino_api._routes.host + \
+                "/v4/projects/" + project_id + "/scheduledjobs"
+            response_json = self.domino_api.request_manager.post(
+                url, json=request).json()
+            job_id = response_json["id"]
+            self.log.info("Submission of scheduled job {} succeeded. Job id is {}".format(
+                self.task_id, job_id))
+            self.set_status(self.STAT_SUCCEEDED)
+        except:
+            self.set_status(self.STAT_FAILED)
+            self.log.error(
+                "Submission of scheduled job {} failed.".format(self.task_id))
+
+        return response_json
+
 
 class DominoRun(DominoTask):
-    """
-    self.command        # command to submit to API
-    self.isDirect       # isDirect flag to submit to API
-    self.max_retries    # maximum retries
+    """Handles Job executions.
 
-    self.run_id         # ID of latest run attempt
-    self.retries        # number of retries so far
+    This class implements a task for running Domino jobs. 
+    Jobs are a type of execution where an executor machine is assigned to execute a specified command in its OS shell. 
+    You can use Jobs to run Python, R, or Bash scripts
 
+    See Also
+    --------
+    DominoTask : The base class for all orchestrator tasks
 
-    once submitted, it polls status, and retries (submits re-runs) up to max_retries
+    The `Jobs <https://docs.dominodatalab.com/en/latest/user_guide/942549/jobs/>`_ section in the Domino Documentation.
     """
 
     def __init__(self, task_id, command, isDirect=False, max_retries=0, tier=None):
+        """Creates a job task.
+
+        Parameters
+        ----------
+        task_id : str
+                Task name (unique id).
+        command : str
+                The command to execution as an array of strings where members of the array represent arguments of the command. For example: ["main.py", "hi mom"].
+        is_Direct : bool, default=False
+                Whether this command should be passed directly to a shell
+        mas_retries : int, default=0
+                Number of maximum retries if the original run fails. Once max_retries is reached, the entire task is placed in a failed state.
+        tier : str
+                The hardware tier to use for the execution. This is the human-readable name of the hardware tier, such as "Free", "Small", or "Medium". 
+                If not provided, the project's default tier is used.
+        """
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -176,36 +277,69 @@ class DominoRun(DominoTask):
         return self._status
 
     def submit(self):
+        response_json = None
+
         self.log.info("-- Submitting run {0} --".format(self.task_id))
         self.log.info("Direct task   : {}".format(self.isDirect))
         self.log.info("Command       : {}".format(self.command))
-        if self.tier:
-            # Catch errors (e.g. invalid hw tier etc.)
-            response_json = self.domino_api.runs_start(
-                self.command, isDirect=self.isDirect, tier=self.tier)
-            self.log.info("Tier override : {}".format(self.tier))
-        else:
-            response_json = self.domino_api.runs_start(
-                self.command, isDirect=self.isDirect)
 
-        self.run_id = response_json["runId"]
-        self._status = DominoTask.STAT_INPROGRESS
-        self.log.info(20*"-")
+        try:
+            if self.tier:
+                # Catch errors (e.g. invalid hw tier etc.)
+                response_json = self.domino_api.runs_start(
+                    self.command, isDirect=self.isDirect, tier=self.tier)
+                self.log.info("Tier override : {}".format(self.tier))
+            else:
+                response_json = self.domino_api.runs_start(
+                    self.command, isDirect=self.isDirect)
+            self.run_id = response_json["runId"]
+            self._status = DominoTask.STAT_INPROGRESS
+        except Exception as e:
+            self._status = DominoTask.STAT_FAILED
+            self.log.error(
+                "Submission of task {} failed.".format(self.task_id))
+            self.log.exception(e)
+
         return response_json
 
 
 class DominoModel(DominoTask):
-    """
-    self.task_id            # name of task
-    self.environment_id     # id of compute env used for building the model image
-    file_name               # file containing the scoring function
-    function_name           # scoring function
-    model_name              # model name
-    description             # model description
-    model_id                # model ID (if updating an existing model)
+    """Handles Model API deployments.
+
+    This class implements a task for building and deploying Domino APIs. 
+    Domino Model APIs are REST API endpoints that run your Domino code. 
+    These endpoints are automatically served and scaled by Domino to provide programmatic access to your R and Python data science code. 
+
+    See Also
+    --------
+    DominoTask : The base class for all orchestrator tasks
+
+    The `Model APIs <https://docs.dominodatalab.com/en/latest/user_guide/8dbc91/model-apis/>`_ section in the Domino Documentation.
     """
 
     def __init__(self, task_id, file_name, function_name, model_name, description="", model_id=None, environment_id=None):
+        """Creates a Domino API task.
+
+        Parameters
+        ----------
+        task_id : str
+                Task name (unique id).
+        file_name : str
+                Path to the file containing the model code.
+        function_name : str
+                The function to be called when the model handles a request
+        model_name: str
+                Name for the model (this is the name showed in the Model APIs view of the Domino UI)
+        description : str, default=""
+                Description of the model or summary of the changes in the new version.
+        model_id : str, default=None
+                If set, triggers the deployment of a new version of an existing Model API. The existing model is identified using the model_id value.
+                If not set, builds and deploys a brand new Model API.
+        environment_id : str, default=None
+                The unique id of the environment for the model to use. 
+                TODO: If no environment id is provided it defaults to the first globally available environment. This needs to be fixed. 
+                      It is better to fall back to the default project environment instead.
+        """
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -234,7 +368,6 @@ class DominoModel(DominoTask):
 
             api_status = self.domino_api.request_manager.get(url).json()[
                 "status"].lower()
-            #print("DominoModel status:", api_status)
 
             if api_status == "building":
                 status = self.STAT_INPROGRESS
@@ -249,7 +382,12 @@ class DominoModel(DominoTask):
         return self._status
 
     def get_global_envs(self):
-        # Get all globally available environments
+        """Fetches all globally available compute environments.
+
+        Returns
+        -------
+        list of str : List of all globally available compute environments
+        """
         all_available_environments = self.domino_api.environments_list()
         global_environments = list(
             filter(
@@ -261,12 +399,22 @@ class DominoModel(DominoTask):
         return global_environments
 
     def get_versions(self):
+        """Gets all versions of a specific model. The id of the queried model is fetched from self.model_id.
+
+        Returns
+        -------
+        list of str : List of ids (most recent first) of all model versions for a specific Model API
+        """
+        assert self.model_id is not None, "Trying to get Model API versions but model_id is None. This should not happen."
+
         url = self.domino_api._routes._build_models_url() + "/" + \
             self.model_id + "/versions"
         response_json = self.domino_api.request_manager.get(url).json()
         return response_json.get("data", {})
 
     def submit(self):
+        response_json = None
+
         self.log.info("-- Submitting model {0} --".format(self.task_id))
         self.log.info("Environment : {}".format(self.environment_id))
         self.log.info("Function    : {}".format(self.function_name))
@@ -283,7 +431,7 @@ class DominoModel(DominoTask):
             response_json = self.domino_api.model_version_publish(model_id=self.model_id, file=self.file_name, function=self.function_name,
                                                                   environment_id=self.environment_id, description=self.description)
         else:
-            # no model_id, this is a new model deply
+            # no model_id, this is a new model deploy
             response_json = self.domino_api.model_publish(file=self.file_name, function=self.function_name, environment_id=self.environment_id,
                                                           name=self.model_name, description=self.description)
             # Set the model_id and version_id
@@ -294,8 +442,6 @@ class DominoModel(DominoTask):
 
         self.log.info("Created a model with model_id {0} and model_version {1}".format(
             self.model_id, self.version_id))
-        #print("model_id:", self.model_id)
-        #print("version_id:", self.version_id)
 
         self._status = DominoTask.STAT_INPROGRESS
         self.log.info(20*"-")
@@ -304,19 +450,35 @@ class DominoModel(DominoTask):
 
 
 class DominoApp(DominoTask):
-    """
-    self.command        # command to submit to API
-    self.isDirect       # isDirect flag to submit to API
-    self.max_retries    # maximum retries
+    """Handles Domino App deployments.
 
-    self.run_id         # ID of latest run attempt
-    self.retries        # number of retries so far
+    This class implements a task for building and deploying a Domino App. 
+    Domino Apps host web applications and dashboards with the same elastic infrastructure that powers Jobs and Workspace sessions.
+    Typical Apps are built with frameworks like Flask, Shiny, and Dash.
 
+    Note, that Domino allows for only one Domino App per project. If the project that the task operates on already has an App up and running
+    the task will automatically unpublish it before replacing it with the new App.
 
-    once submitted, it polls status, and retries (submits re-runs) up to max_retries
+    See Also
+    --------
+    DominoTask : The base class for all orchestrator tasks
+
+    The `Domino Apps <https://docs.dominodatalab.com/en/latest/user_guide/8b094b/domino-apps/>`_ section in the Domino Documentation.
     """
 
     def __init__(self, task_id, app_name, tier=None):
+        """Creates a Domino App task.
+
+        Parameters
+        ----------
+        task_id : str
+                Task name (unique id).
+        app_name : str
+                Application name.
+        tier : str
+                The hardware tier to use for the deployed application. This is the human-readable name of the hardware tier, such as "Free", "Small", or "Medium". 
+                If not provided, the project's default tier is used.
+        """
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -333,10 +495,6 @@ class DominoApp(DominoTask):
             response = self.domino_api.request_manager.get(url).json()
             api_status = response.get("status", None).lower()
 
-            #api_status = self.domino_api.request_manager.get(url).json()["status"]
-            #log.info("DominoApp status: {}".format(api_status))
-            #print("DominoApp status: {}".format(api_status))
-
             if api_status == "running":
                 self.set_status(self.STAT_SUCCEEDED)
             elif api_status in ("error", "failed"):
@@ -349,6 +507,8 @@ class DominoApp(DominoTask):
         return self._status
 
     def submit(self):
+        response_json = None
+
         self.log.info("-- Submitting app {0} --".format(self.task_id))
         self.log.info("Name          : {}".format(self.app_name))
         if self.tier:
@@ -387,6 +547,7 @@ class DominoApp(DominoTask):
 
         response_json = self.domino_api.request_manager.post(
             url, json=request).json()
+
         return response_json
 
     def _create_app(self):
@@ -424,7 +585,7 @@ class DominoApp(DominoTask):
         if key in response_json.keys():
             app_id = response_json[key]
             self.log.info(
-                "Succesfully created application with app_id: {}".format(app_id))
+                "Successfully created application with app_id: {}".format(app_id))
         else:
             raise RuntimeError(
                 "Cannot create application. task_id {}".format(self.task_id))
