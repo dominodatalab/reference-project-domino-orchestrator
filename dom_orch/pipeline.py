@@ -1,3 +1,17 @@
+# Author: Nikolay Manchev <nikolay.manchev@dominodatalab.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import json
 import logging
 import time
@@ -6,9 +20,20 @@ import configparser
 from .tasks import DominoApp, DominoModel, DominoRun, DominoSchedRun, DominoTask
 
 class Dag:
-    """
-    self.tasks              # dictionary of task_ids -> DominoRun objects
-    self.dependency_graph   # dictionary of task_ids -> list of dependency task_ids
+    """Dependency graph class.
+
+    Contains the workflow structure, including all tasks and their dependencies.
+
+    Parameters
+    ----------
+    tasks : list of DominoRun instances
+            Task name (unique id)
+    dependency_graph : a dictionary of {'task_id_1': [dependencies], 'task_id_2': [dependencies],...}
+            Contains all task ids (from the control file) as keys, and their relevant dependencies (as task ids). The list from the test control
+            file produces a dependency graph that looks like this:
+            ``{'job_1': [], 'job_2': [], 'job_3': [], 'sched_job_1': [], 'model_1': ['job_3'], 'app_1': ['model_1']}``
+    allow_partial_failure : bool, default=False
+        If partial failures are allowed, the execution continues even if individual tasks fail.
     """
     DAG_FAILED = "Failed"
     DAG_RUNNING = "Running"
@@ -25,6 +50,11 @@ class Dag:
         self.log = logging.getLogger(__name__)
  
     def get_dependency_statuses(self, task_id):
+        """
+        Returns a list of statuses for all dependencies for a given task_id.
+        This enables us to check if all prerequisites for a task have been completed so
+        the task itself can be scheduled. 
+        """
         dependency_statuses = []
         deps = self.dependency_graph[task_id]
         for dep in deps:
@@ -32,6 +62,21 @@ class Dag:
         return dependency_statuses
  
     def are_task_dependencies_complete(self, task_id):
+        """Check if all task dependencies have completed successfully.
+
+        Parameters
+        ----------
+        task_id : str
+            Task name (unique id).
+
+        Returns
+        -------
+        bool : True if all dependent tasks have completed with DominoTask.STAT_SUCCEEDED status.
+    
+        See Also
+        --------
+        get_dependency_statuses : list of statuses for all dependencies
+        """
         dependency_statuses = self.get_dependency_statuses(task_id)
         if dependency_statuses:
             all_deps_succeeded = all(status == DominoTask.STAT_SUCCEEDED for status in dependency_statuses)
@@ -40,12 +85,29 @@ class Dag:
         return all_deps_succeeded
  
     def get_ready_tasks(self):
+        """Returns a list of tasks that are ready for execution.
+        """
         return self.ready_tasks
  
     def get_failed_tasks(self):
+        """Returns a list of tasks that have failed.
+        """
         return self.failed_tasks
  
     def update_tasks_states(self):
+        """Updates the status of all tasks in the DAG.
+
+        Returns
+        -------
+        failed_tasks : a list of DominoTask
+            Tasks that have failed
+        ready_tasks : a list of DominoTask
+            Tasks that are ready for execution
+
+        See Also
+        --------
+        See the :DominoTask:'dom_orch.tasks.DominoTask' class.
+        """        
         self.failed_tasks = []
         self.ready_tasks = []
         all_tasks = self.tasks
@@ -72,39 +134,52 @@ class Dag:
         return self.failed_tasks, self.ready_tasks            
  
     def pipeline_status(self):
+        """Get the pipeline status.
+
+        Returns
+        -------
+
+        str: {DAG_RUNNING, DAG_FAILED, DAG_SUCCEEDED}
+            DAG_RUNNING - the pipeline is running
+            DAG_FAILED - the pipeline has failed
+            DAG_SUCCEEDED - the pipeline has completed successfully
+        """
         status = self.DAG_RUNNING
  
         if len(self.get_failed_tasks()) > 0 and self.allow_partial_failure == False:
             status = self.DAG_FAILED
         elif all(task.is_complete() for task_id, task in self.tasks.items()):
             status = self.DAG_SUCCEEDED
-        #         elif len(self.get_ready_tasks()) == 0: # infinite loop if not Succeeded
-        #             status = 'Failed'
         return status
-        # inspect graph, run statuses, allow_partial_failure to determine whether pipeline should continue
- 
+    
     def validate_dag(self):
         """
-        TODO: Implement graph validation. Make sure that
+        TODO: Implement graph validation. Make sure that:
               * The graph is not cyclic
               * All task names are unique
         """
         pass
- 
-    def validate_run_command(self):
-        pass
- 
+  
     def get_tasks(self):
+        """Get a list of all tasks in the graph
+
+        Returns
+        -------
+        list of DominoTask:
+            All tasks in the DAG
+
+        See Also
+        --------
+        See the :DominoTask:'dom_orch.tasks.DominoTask' class.
+        """
         return self.tasks
  
     def __str__(self):
- 
         dict_3 = {**self.tasks, **self.dependency_graph}
         for key, value in dict_3.items():
             if key in self.tasks and key in self.dependency_graph:
                dict_3[key] = [self.tasks[key].__class__.__name__, value]
  
-        #return pprint.pformat(dict_3, width=1)
         return json.dumps(dict_3, indent=2)
 
 class PipelineRunner:
@@ -174,7 +249,7 @@ class DagBuilder:
         c = configparser.ConfigParser(allow_no_value=True)
         c.read(self.control_file)
     
-        # Build dependancy graph
+        # Build dependency graph
         tasks = {}
         dependency_graph = {}
         task_ids = c.sections()
