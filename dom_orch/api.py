@@ -13,9 +13,12 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import logging
 
 from domino import Domino
+from domino import __version__
 
+_TESTED_API_VERSION = "1.2.2"
 
 class DominoAPISession(object):
     """Singleton that returns a connection to the target Domino instance.
@@ -30,7 +33,7 @@ class DominoAPISession(object):
     >>> api = DominoAPISession.instance()
     >>> api.runs_start(...)   # standard Domino API call
     """
-
+    
     _domino_api = None
 
     def __init__(self):
@@ -40,6 +43,10 @@ class DominoAPISession(object):
     def instance(cls):
 
         if not cls._domino_api:
+
+            if __version__ != _TESTED_API_VERSION:
+                log = logging.getLogger(__name__)
+                log.warn("Expected API version is {0} but the current Domino API version is {1}".format(_TESTED_API_VERSION, __version__))
 
             DOMINO_USER_API_KEY = os.environ["DOMINO_USER_API_KEY"]
             DOMINO_PROJECT_NAME = os.environ["DOMINO_PROJECT_NAME"]
