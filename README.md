@@ -60,9 +60,13 @@ Feel free to study the [test_deploy.cfg](https://github.com/dominodatalab/refere
 
 ## Maintaining dependencies
 
+Each task in the control file has an optional attribute `depends`, which takes a list of task names (space separated) that the current task depends on. Using this mechanism enables us to build an acyclic execution graph, which defines a dependency structure. Tasks in the graph will only be scheduled for execution once all of the tasks they depend on (i.e. listed in the `depends` attribute) have been successfully completed.
+
+For example, the demo control file [test_deploy.cfg](https://github.com/dominodatalab/reference-project-domino-orchestrator/raw/main/test_deploy.cfg) defines the following dependency graph:
+
 ![dependency graph](https://github.com/dominodatalab/reference-project-domino-orchestrator/raw/main/images/dep_graph.png)
 
-
+Here you see that the three runs (`job_1`, `job_2`, and `job_3`) have no dependencies, so they will be executed in parallel. `model_1`, however has a dependency on `job_3`, so the orchestrator will wait for `job_3` to complete before executing the `model_1` task. Similarly, `app_1` depends on `model_1`, which needs to be built successfully before the application is deployed.
 
 ## Example usage
 
