@@ -1,6 +1,13 @@
 # Domino Reference Project: Workflow orchestration
 A lightweight framework for executing tasks via the Domino API
 
+This provides a simple orchestrator, which uses the [Domino API](https://docs.dominodatalab.com/en/4.2/api_guide/f35c19/api-guide/) to run a number of tasks (e.g. jobs, models, apps) in the [Domino Enterprise MLOps Platform](https://www.dominodatalab.com/product/domino-enterprise-mlops-platform). Four different type of tasks are supported:
+
+* Run --- This is a standard [Domino Job](https://docs.dominodatalab.com/en/latest/user_guide/942549/jobs/), which is a type of execution where an executor machine is assigned to execute a specified command in its OS shell. A Job can be used to also run Python, R, or Bash scripts.
+* Scheduled Job --- This is a job, which is [scheduled for execution](https://docs.dominodatalab.com/en/latest/user_guide/5dce1f/scheduled-jobs/) in advance and set to execute on a regular cadence.
+* 
+
+
 
 ![dependency graph](https://github.com/dominodatalab/reference-project-domino-orchestrator/raw/main/images/dep_graph.png)
 
