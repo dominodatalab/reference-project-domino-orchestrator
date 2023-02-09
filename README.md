@@ -56,13 +56,19 @@ command: hello.py
 tier: small
 ```
 
+Feel free to study the [test_deploy.cfg](https://github.com/dominodatalab/reference-project-domino-orchestrator/raw/main/test_deploy.cfg) control file, which provides sample entries for all supported task types.
 
+## Maintaining dependencies
 
 ![dependency graph](https://github.com/dominodatalab/reference-project-domino-orchestrator/raw/main/images/dep_graph.png)
 
+
+
 ## Example usage
 
+The [test_deploy.py](https://raw.githubusercontent.com/dominodatalab/reference-project-domino-orchestrator/main/test_deploy.py) files includes sample code for parsing, building the execution graph, and running the tasks defined in the demo control file ([test_deploy.cfg](https://github.com/dominodatalab/reference-project-domino-orchestrator/raw/main/test_deploy.cfg)).
 
+This is the expected output (some parts have been omitted for brevity):
 
 ```console
 $ python test_deploy.py

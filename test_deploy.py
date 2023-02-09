@@ -1,3 +1,17 @@
+# Author: Nikolay Manchev <nikolay.manchev@dominodatalab.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import logging
 
@@ -5,9 +19,16 @@ from dom_orch.api import DominoAPISession
 from dom_orch.pipeline import Dag, DagBuilder
 from dom_orch.pipeline import PipelineRunner
 
-
-
 def main():
+    """Simple demo on how to use the orchestrator with the sample control file.
+
+    Note, that this assumes the following environment variables are set:
+
+    DOMINO_USER_API_KEY - Name of the running project
+    DOMINO_PROJECT_NAME - User API key
+    DOMINO_PROJECT_OWNER - Username of the owner of the running project
+    """
+
     # Set up logging
     DOMINO_LOG_LEVEL = os.getenv("DOMINO_LOG_LEVEL", "INFO").upper()
     logging_level = logging.getLevelName(DOMINO_LOG_LEVEL)
@@ -40,59 +61,6 @@ def main():
       # TODO: Proper error handling
       log.error("Pipeline execution failed.")
       raise
-
-    """
-    
-    project_id = api.project_id
-    url = api._routes.host + "/v4/projects/" + project_id + "/scheduledjobs"
-    url = "https://market4186.marketing-sandbox.domino.tech/v4/projects/63bc098ba111ce3c7f7ca892/scheduledjobs"
-
-    request = {
-        "title": "Test",
-        "command": "hello.py",
-        "schedule": {
-            "cronString": "0 0/20 0 ? * * *",
-            "isCustom": True
-        },
-        "hardwareTierIdentifier": "small-k8s",
-        "environmentRevisionSpec":"ActiveRevision",
-        "notifyOnCompleteEmailAddresses":[],
-        "isPaused":False,
-        "timezoneId":"Europe/London",
-        "publishAfterCompleted":False,
-        "allowConcurrentExecution":False,
-        "scheduledByUserId": "6141ccfd0f08e1652cfad376",
-    }
-
-    response = api.request_manager.post(url, json=request)
-    print(response)
-    #return response.json()
-
-    """
-
-    """
-    request = {
-        "projectId":"63bc098ba111ce3c7f7ca892",
-        "title":"Test",
-        "command":"test.py",
-        "schedule":{"cronString":"0 0 12 * * ?",
-        "isCustom":False,
-        "humanReadableCronString":"every day at 12:00 GMT"},
-        "timezoneId":"Europe/London",
-        "isPaused":False,
-        "publishAfterCompleted":False,
-        "allowConcurrentExecution":False,
-        "hardwareTierIdentifier":"small-k8s",
-        "hardwareTierName":"Small",
-        "overrideEnvironmentId":"613f748afd9e5a517530348a",
-        "environmentRevisionSpec":"ActiveRevision",
-        "scheduledByUserId": "6141ccfd0f08e1652cfad376",
-        "scheduledByUserName": "nmanchev",
-        "notifyOnCompleteEmailAddresses":[],
-        "volumeSpecificationOverride":{"size":{"value":10,"unit":"GiB"}
-    }
-    """
-
 
 if __name__ == "__main__":
     main()
