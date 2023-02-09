@@ -5,7 +5,9 @@ This provides a simple orchestrator, which uses the [Domino API](https://docs.do
 
 * Run --- This is a standard [Domino Job](https://docs.dominodatalab.com/en/latest/user_guide/942549/jobs/), which is a type of execution where an executor machine is assigned to execute a specified command in its OS shell. A Job can be used to also run Python, R, or Bash scripts.
 * Scheduled Job --- This is a job, which is [scheduled for execution](https://docs.dominodatalab.com/en/latest/user_guide/5dce1f/scheduled-jobs/) in advance and set to execute on a regular cadence.
-* 
+* Model API --- A Domino [Model API](https://docs.dominodatalab.com/en/latest/user_guide/0e1396/model-apis/), a Python or R function available as a REST API endpoint.
+* App --- [Domino Apps](https://docs.dominodatalab.com/en/latest/user_guide/8b094b/domino-apps/), hosted web applications written in popular frameworks like Flask, Shiny, or Dash
+
 
 
 
