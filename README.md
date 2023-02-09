@@ -68,6 +68,15 @@ For example, the demo control file [test_deploy.cfg](https://github.com/dominoda
 
 Here you see that the three runs (`job_1`, `job_2`, and `job_3`) have no dependencies, so they will be executed in parallel. `model_1`, however has a dependency on `job_3`, so the orchestrator will wait for `job_3` to complete before executing the `model_1` task. Similarly, `app_1` depends on `model_1`, which needs to be built successfully before the application is deployed.
 
+## Authentication
+The [test_deploy.py](https://raw.githubusercontent.com/dominodatalab/reference-project-domino-orchestrator/main/test_deploy.py) and the [DominoAPISession](https://github.com/dominodatalab/reference-project-domino-orchestrator/raw/main/dom_orch/api.py) singleton expect that the following environment variables are present during execution of the test script:
+
+* DOMINO_USER_API_KEY - Name of the running project
+* DOMINO_PROJECT_NAME - User API key
+* DOMINO_PROJECT_OWNER - Username of the owner of the running project
+
+These are used for identifying the Domino instance URL, current project, and authentication key. They need to be present in the environment running the `test_deploy.py` (or any script using `dom_orch` for that matter).
+
 ## Example usage
 
 The [test_deploy.py](https://raw.githubusercontent.com/dominodatalab/reference-project-domino-orchestrator/main/test_deploy.py) files includes sample code for parsing, building the execution graph, and running the tasks defined in the demo control file ([test_deploy.cfg](https://github.com/dominodatalab/reference-project-domino-orchestrator/raw/main/test_deploy.cfg)).
@@ -153,3 +162,7 @@ INFO:dom_orch.pipeline:task_id: app_1           status:Succeeded
 INFO:__main__:Pipeline completed successfully.
 $ 
 ```
+
+## Notes
+
+This package has been tested and certified using [python-domino](https://github.com/dominodatalab/python-domino) version 1.2.2. Trying to use it with other versions of the `python-domino` package may lead to unstable behaviour.
