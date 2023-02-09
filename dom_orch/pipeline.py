@@ -183,24 +183,29 @@ class Dag:
         return json.dumps(dict_3, indent=2)
 
 class PipelineRunner:
-    '''
-    should this be stateless or stateful?
-    - needs to be stateful to track run IDs and states (for retry logic) of various tasks
-    - use Dag object to store state
-    '''
- 
+    """Responsible for running a pipeline based on the DAG structure.
+
+    Parameters
+    ----------
+    dag : Dag
+        The execution graph.
+    tick_freq : int, default=15
+        Number of seconds to wait between checking the status of the execution graph.
+        The default is 15 seconds.
+
+    See Also
+    --------
+    See the :Dag:'dom_orch.pipeline.Dag' class.
+    """
     def __init__(self, dag, tick_freq=15):
-        """
-        Initialises a pipline runner object
-        :param Dag dag: The execution graph
-        :param int tick_freq: Seconds to wait between checking the status of the graph. Default is 15 seconds.
-        """
         self.dag = dag
         self.tick_freq = tick_freq
 
         self.log = logging.getLogger(__name__)
  
     def run(self):
+        """Starts and operates the graph execution cycle
+        """
         # Loop until failure or until everything has been executed
         self.log.info("Starting the pipeline...")
  
@@ -218,7 +223,6 @@ class PipelineRunner:
                 raise RuntimeError("Pipeline Execution Failed")
             
             # Check for tasks
-            #ready_tasks = dag.get_ready_tasks()
             if len(ready_tasks) == 0:
                 self.log.info("Waiting for executions or new tasks...")
             else:
@@ -236,7 +240,64 @@ class PipelineRunner:
  
 
 class DagBuilder:
+    """Builds a dag from a control file.
 
+    Parameters
+    ----------
+    control_file : str
+        A control file containing an execution graph. The structure of the control file follows a dictionary/attributes paradigm.
+        Each task has a unique id (str), which is used for describing relationships (dependencies). The valid task types
+        are {run, model, app}
+
+    Returns
+    -------
+    dag : Dag
+        The execution graph.
+
+    See Also
+    --------
+    * The configuration file parser - `configparser <https://docs.python.org/3/library/configparser.html>`_.
+
+    * The :Dag:'dom_orch.pipeline.Dag' class.
+
+    Examples
+    --------
+    A simple configuration file with 2 jobs, 1 scheduled task, 1 model, and 1 app could look like this:
+
+    ```
+        [job_1]
+        type: run
+        command: hello.py job_1
+        
+        [job_2]
+        type: run
+        command: hello.py job_2
+        tier: Large
+                
+        [sched_job_1]
+        type: run
+        cron_string: * 0/20 0 ? * SUN,MON,TUE,WED,THU,FRI *
+        command: hello.py job_1
+        tier: small
+
+        [model_1]
+        type: model
+        name: Hello Model
+        description: Hello Test model
+        file: model.py
+        function: return_hello
+        depends: job_2
+        
+        [app_1]
+        type: app
+        name: TestApp1
+        tier: Large
+        depends: model_1
+    ```
+
+    Note, that model_1 depends on job_2, and app_1 depends on model_1. There is no dependency between job_1, job_2, and sched_job_1, so these
+    three will be executed in parallel.
+    """
     def __init__(self, control_file):
         self.control_file = control_file
 
