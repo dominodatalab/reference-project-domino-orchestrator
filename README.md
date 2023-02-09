@@ -8,6 +8,53 @@ This provides a simple orchestrator, which uses the [Domino API](https://docs.do
 * Model API --- A Domino [Model API](https://docs.dominodatalab.com/en/latest/user_guide/0e1396/model-apis/), a Python or R function available as a REST API endpoint.
 * App --- [Domino Apps](https://docs.dominodatalab.com/en/latest/user_guide/8b094b/domino-apps/), hosted web applications written in popular frameworks like Flask, Shiny, or Dash
 
+This framework provides a mechanism for executing such tasks remotely or within a running Domino instance.
+
+## Task definition
+
+The tasks are defined using a control file. The control file syntax follows [configparser](https://docs.python.org/3/library/configparser.html). Each task is a separate entry and must conform to the following format:
+
+```
+[task_id]
+type = task_type
+task_attribute_1 = value_1
+task_attribute_2 = value_2
+...
+```
+
+where `task_id` is a string, uniquely identifying the task (within the namespace of the control file), `type` denotes the task type, and `task_attribute_1,2,...` are task-dependent attributes that provide additional information for the task. Note, that not all task attributes are mandatory. 
+
+There are three type of tasks: `run`, `model`, and `app`. The most simple job run can be expressed like this:
+
+```
+[simple_job_1]
+type=run
+command: hello.py
+```
+
+This task executes the hello.py script, which must be present in your Domino project. Note, that `command` is a mandatory attribute for tasks of type `run`. There are optional attributes for overriding the default hardware tier. Including a value for the optional attribute `cron_string`, turn the run into a scheduled job. Notice, that the value of `cron_string` follows the crontab syntax as follows:
+
+```
+            # ┌───────────── minute (0 - 59)
+            # │ ┌───────────── hour (0 - 23)
+            # │ │ ┌───────────── day of the month (1 - 31)
+            # │ │ │ ┌───────────── month (1 - 12)
+            # │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday;
+            # │ │ │ │ │                                   7 is also Sunday on some systems)
+            # │ │ │ │ │
+            # │ │ │ │ │
+            # * * * * * <command to execute>
+```
+
+For example, the following entry defines a scheduled job named `sched_job_1`, which executes the `hello.py` Python script every 20 minutes, on every day of the week except Saturday:
+
+```
+[sched_job_1]
+type: run
+cron_string: * 0/20 0 ? * SUN,MON,TUE,WED,THU,FRI *
+command: hello.py
+tier: small
+```
 
 
 
