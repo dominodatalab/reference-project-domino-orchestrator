@@ -2,7 +2,7 @@
 A lightweight framework for executing tasks via the Domino API
 
 
-
+![dependency graph](https://github.com/dominodatalab/reference-project-domino-orchestrator/raw/main/images/dep_graph.png)
 
 ## Example usage
 
