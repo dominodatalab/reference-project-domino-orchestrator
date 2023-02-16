@@ -41,6 +41,33 @@ def get_hardware_tier_id(tier_name):
     return hw_tier_id
 
 
+def get_default_hardware_tier():
+    """Gets the default HW tier for the project. The project ID is automatically 
+    fetched from the authentication session.
+
+    Returns
+    -------
+    hw_tier_id : str
+              Domino hardware tier ID (e.g. small-k8s, large-k8s, gpu-small-k8s, etc.)
+    """
+    domino_api = DominoAPISession.instance()
+    project_id = domino_api.project_id
+
+    url = domino_api._routes.host + \
+                "/v4/projects/" + project_id + "/hardwareTiers"
+
+    result = domino_api.request_manager.get(url).json()
+    
+    # As a fallback, select the first HW tier available to the project
+    default_tier_id = result[0]["hardwareTier"]["id"]
+
+    for tier in result:
+        if tier["hardwareTier"]["isDefault"]:
+            # Found the default HW tier
+            default_tier_id = tier["hardwareTier"]["id"]
+
+    return default_tier_id
+
 def get_local_timezone():
     # Returns the local timezone
     local_tz = get_localzone()

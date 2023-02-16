@@ -16,7 +16,7 @@ import logging
 import time
 
 from .api import DominoAPISession
-from .helpers import get_hardware_tier_id, get_local_timezone
+from .helpers import get_default_hardware_tier, get_hardware_tier_id, get_local_timezone
 from abc import abstractmethod
 from abc import ABCMeta
 
@@ -159,19 +159,24 @@ class DominoSchedRun(DominoTask):
     def submit(self):
         response_json = None
 
+        # If no tier override is set, use the default HW tier for the project
+        if self.tier:
+            tier_id = get_hardware_tier_id(self.tier)
+        else:
+            tier_id = get_default_hardware_tier()
+
         self.log.info(
             "-- Submitting scheduled job {0} --".format(self.task_id))
         self.log.info("Title       : {}".format(self.title))
         self.log.info("Command     : {}".format(self.command))
-        if self.tier:
-            self.log.info("Tier        : {}".format(self.tier))
         if self.environment_id:
             self.log.info("Environment : {}".format(self.environment_id))
         self.log.info("Cron string : {}".format(self.cron_string))
+        if self.tier:
+            self.log.info("Tier        : {}".format(self.tier))
 
-        tier_id = get_hardware_tier_id(self.tier)
         project_id = self.domino_api.project_id
-
+        
         # Get the scheduling user's id
         username = self.domino_api._routes._owner_username
         user_id = self.domino_api.get_user_id(username)
