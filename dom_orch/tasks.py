@@ -330,6 +330,11 @@ class DominoModel(DominoTask):
             The unique id of the environment for the model to use. 
             TODO: If no environment id is provided it defaults to the first globally available environment. This needs to be fixed. 
                     It is better to fall back to the default project environment instead.
+    deploy_by_name : bool
+        This will use model_name to try and identify a model. Avoid using this as it breaks traceability and can have 
+        unintended consequences. Employ this option only if you really know what you are doing and have a specific
+        use-case that demands it. Note, that having two models with the same name in the project will lead to the
+        task failing (by design).
 
     See Also
     --------
@@ -338,7 +343,7 @@ class DominoModel(DominoTask):
     The `Model APIs <https://docs.dominodatalab.com/en/latest/user_guide/8dbc91/model-apis/>`_ section in the Domino Documentation.
     """
 
-    def __init__(self, task_id, file_name, function_name, model_name, description="", model_id=None, environment_id=None):
+    def __init__(self, task_id, file_name, function_name, model_name, description="", model_id=None, environment_id=None, deploy_by_name=False):
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -357,9 +362,15 @@ class DominoModel(DominoTask):
         self.description = description
         self.model_id = model_id
         self.version_id = None
+        self.deploy_by_name = deploy_by_name
+
+        if (self.deploy_by_name and self.model_id):
+            self.log.warn("Both deploy_by_name and model_id are set. Ignoring model_id.")
+            self.model_id = None
+            
 
     def status(self):
-        if (self._status != DominoTask.STAT_UNSUBMITTED):
+        if (self._status != DominoTask.STAT_UNSUBMITTED and self._status != DominoTask.STAT_FAILED):
             assert self.model_id != None, "This shouldn't happen. Task is marked as submitted but has no model_id?"
             # If the task has been submitted, update its status
             url = self.domino_api._routes._build_models_v4_url() + "/" + self.model_id + \
@@ -421,6 +432,27 @@ class DominoModel(DominoTask):
         self.log.info("Model name  : {}".format(self.model_name))
         if self.model_id:
             self.log.info("Model ID    : {}".format(self.model_id))
+
+        if self.deploy_by_name:
+            # we need to do an update by name
+            # first, fetch all models in the current project
+            url = self.domino_api._routes.models_list()
+            response = self.domino_api.request_manager.get(url).json()
+
+            # iterate over all models and see if there is a match
+            models = response.get("data", None)
+            self.model_id = None
+
+            for model in models:
+                if model["name"] == self.model_name:
+                    # found a model with the specified name
+                    if self.model_id:
+                        # already have a model_id? that's a duplicate then
+                        self.log.error("deploy_by_name is set, but the current project has multiple models with the same name. Task aborting...")
+                        self._status = DominoTask.STAT_FAILED
+                        return
+                    else:
+                        self.model_id = model["id"]
 
         if self.model_id:
             # model_id provided, we'll have to update instead of deploying a new model

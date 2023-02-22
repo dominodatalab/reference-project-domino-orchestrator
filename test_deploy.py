@@ -40,7 +40,6 @@ def main():
     
     # Parse config and build DAG
     dag_builder = DagBuilder("test_deploy.cfg")
-    #dag_builder = DagBuilder("test_scheduled.cfg")
     dag = dag_builder.build_dag()
  
     # Show the DAG

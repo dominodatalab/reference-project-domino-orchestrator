@@ -386,7 +386,10 @@ class DagBuilder:
                 if c.has_option(task_id, "environment"):
                     environment = c.get(task_id, "environment")
     
-    
+                deploy_by_name = False
+                if c.has_option(task_id, "deploy_by_name"):
+                    deploy_by_name = bool(c.get(task_id, "deploy_by_name"))
+
                 model_description = None
                 if c.has_option(task_id, "description"):
                     model_description = c.get(task_id, "description")
@@ -396,8 +399,8 @@ class DagBuilder:
                         function = c.get(task_id, "function")
                 else:
                     raise ValueError("File and function are mandatory fields for a Model API task.")
-    
-                tasks[task_id] = DominoModel(task_id, file_name, function, model_name, model_description, model_id, environment)
+
+                tasks[task_id] = DominoModel(task_id, file_name, function, model_name, model_description, model_id, environment, deploy_by_name)
                 
             elif task_type == "app":
                 # Task is an app deployment
