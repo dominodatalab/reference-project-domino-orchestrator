@@ -288,7 +288,7 @@ class DominoRun(DominoTask):
                 self.log.info("Tier override : {}".format(self.tier))
             else:
                 response_json = self.domino_api.runs_start(
-                    self.command, isDirect=self.isDirect)
+                    self.command, isDirect=self.isDirect, title=self.title)
             self.run_id = response_json["runId"]
             self._status = DominoTask.STAT_INPROGRESS
         except Exception as e:
