@@ -248,7 +248,7 @@ class DominoRun(DominoTask):
     The `Jobs <https://docs.dominodatalab.com/en/latest/user_guide/942549/jobs/>`_ section in the Domino Documentation.
     """
 
-    def __init__(self, task_id, command, isDirect=False, max_retries=0, tier=None):
+    def __init__(self, task_id, command, isDirect=False, max_retries=0, tier=None, title=None):
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -257,6 +257,7 @@ class DominoRun(DominoTask):
         self.isDirect = isDirect
         self.max_retries = max_retries
         self.tier = tier
+        self.title = title
         self.run_id = None
         self.retries = 0
 
@@ -288,11 +289,11 @@ class DominoRun(DominoTask):
             if self.tier:
                 # Catch errors (e.g. invalid hw tier etc.)
                 response_json = self.domino_api.runs_start(
-                    self.command, isDirect=self.isDirect, tier=self.tier)
+                    self.command, isDirect=self.isDirect, tier=self.tier, title=self.title)
                 self.log.info("Tier override : {}".format(self.tier))
             else:
                 response_json = self.domino_api.runs_start(
-                    self.command, isDirect=self.isDirect)
+                    self.command, isDirect=self.isDirect, title=self.title)
             self.run_id = response_json["runId"]
             self._status = DominoTask.STAT_INPROGRESS
         except Exception as e:
