@@ -116,6 +116,8 @@ class DominoSchedRun(DominoTask):
             If not provided, the project's default tier is used.
     environment_id : str
             The environment ID with which to launch the job. If not provided, the project's default environment is used.
+    username : str
+            Username override. If set, the job is scheduled by the user provided. If not set, the job is scheduled by the requesting (authenticated) user.
 
     See Also
     --------
@@ -124,7 +126,7 @@ class DominoSchedRun(DominoTask):
     The `Scheduled Jobs <https://docs.dominodatalab.com/en/latest/user_guide/5dce1f/scheduled-jobs/>`_ section in the Domino Documentation.
     """
 
-    def __init__(self, task_id, command, cron_string, title=None, tier=None, environment_id=None):
+    def __init__(self, task_id, command, cron_string, title=None, tier=None, environment_id=None, username=None):
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -134,6 +136,11 @@ class DominoSchedRun(DominoTask):
         self.tier = tier
         self.cron_string = cron_string
         self.environment_id = environment_id
+        if username:
+            self.username = username
+        else:
+            # If no user override, just get the username of the Domino API session
+            self.username = self.domino_api._routes._owner_username
 
         # If no name is given for the scheduled job use the task_id instead
         if title:
@@ -167,19 +174,20 @@ class DominoSchedRun(DominoTask):
 
         self.log.info(
             "-- Submitting scheduled job {0} --".format(self.task_id))
-        self.log.info("Title       : {}".format(self.title))
-        self.log.info("Command     : {}".format(self.command))
+        self.log.info("Title          : {}".format(self.title))
+        self.log.info("Command        : {}".format(self.command))
         if self.environment_id:
-            self.log.info("Environment : {}".format(self.environment_id))
-        self.log.info("Cron string : {}".format(self.cron_string))
+            self.log.info("Environment    : {}".format(self.environment_id))
+        self.log.info("Cron string    : {}".format(self.cron_string))
         if self.tier:
-            self.log.info("Tier        : {}".format(self.tier))
+            self.log.info("Tier           : {}".format(self.tier))
+
+        self.log.info("Scheduling user : {}".format(self.username))
 
         project_id = self.domino_api.project_id
         
-        # Get the scheduling user's id
-        username = self.domino_api._routes._owner_username
-        user_id = self.domino_api.get_user_id(username)
+        # Get the scheduling user's id 
+        user_id = self.domino_api.get_user_id(self.username)
 
         # We need the local TZ for scheduling
         local_tz = get_local_timezone()
