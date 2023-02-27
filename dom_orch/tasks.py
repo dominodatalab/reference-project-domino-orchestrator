@@ -174,13 +174,13 @@ class DominoSchedRun(DominoTask):
 
         self.log.info(
             "-- Submitting scheduled job {0} --".format(self.task_id))
-        self.log.info("Title          : {}".format(self.title))
-        self.log.info("Command        : {}".format(self.command))
+        self.log.info("Title           : {}".format(self.title))
+        self.log.info("Command         : {}".format(self.command))
         if self.environment_id:
-            self.log.info("Environment    : {}".format(self.environment_id))
-        self.log.info("Cron string    : {}".format(self.cron_string))
+            self.log.info("Environment     : {}".format(self.environment_id))
+        self.log.info("Cron string     : {}".format(self.cron_string))
         if self.tier:
-            self.log.info("Tier           : {}".format(self.tier))
+            self.log.info("Tier            : {}".format(self.tier))
 
         self.log.info("Scheduling user : {}".format(self.username))
 
@@ -188,6 +188,10 @@ class DominoSchedRun(DominoTask):
         
         # Get the scheduling user's id 
         user_id = self.domino_api.get_user_id(self.username)
+        if user_id is None:
+            self.set_status(self.STAT_FAILED)
+            self.log.error("User override set, but no user {} exists in the Domino instance.".format(self.username))
+            return None
 
         # We need the local TZ for scheduling
         local_tz = get_local_timezone()
@@ -224,6 +228,7 @@ class DominoSchedRun(DominoTask):
             self.set_status(self.STAT_FAILED)
             self.log.error(
                 "Submission of scheduled job {} failed.".format(self.task_id))
+            response_json = None
 
         return response_json
 

@@ -364,6 +364,11 @@ class DagBuilder:
                 # Is it a scheduled job?
                 if c.has_option(task_id, "cron_string"):
                     cron_string = c.get(task_id, "cron_string")
+
+                    # Check for user override
+                    if c.has_option(task_id, "user"):
+                         domino_run_kwargs["username"] = c.get(task_id, "user")
+
                     tasks[task_id] = DominoSchedRun(task_id, command, cron_string, **domino_run_kwargs)
 
                 else:
