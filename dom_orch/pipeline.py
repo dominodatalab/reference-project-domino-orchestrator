@@ -356,15 +356,14 @@ class DagBuilder:
                 if c.has_option(task_id, "max_retries"):
                     max_retries = c.get(task_id, "max_retries")
                     domino_run_kwargs["max_retries"] = max_retries
-            
+
+                if c.has_option(task_id, "title"):
+                    title = c.get(task_id, "title")
+                    domino_run_kwargs["title"] = title
+
                 # Is it a scheduled job?
                 if c.has_option(task_id, "cron_string"):
                     cron_string = c.get(task_id, "cron_string")
-                    
-                    if c.has_option(task_id, "title"):
-                        title = c.get(task_id, "title")
-                        domino_run_kwargs["title"] = title
-
                     tasks[task_id] = DominoSchedRun(task_id, command, cron_string, **domino_run_kwargs)
 
                 else:
