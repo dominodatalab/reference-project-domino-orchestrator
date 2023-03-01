@@ -418,6 +418,10 @@ class DagBuilder:
                     tier = c.get(task_id, "tier")
                     domino_run_kwargs["tier"] = tier
     
+                if c.has_option(task_id, "description"):
+                    description = c.get(task_id, "description")
+                    domino_run_kwargs["description"] = description
+
                 tasks[task_id] = DominoApp(task_id, app_name, **domino_run_kwargs)
     
             else:

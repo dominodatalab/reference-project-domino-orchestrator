@@ -521,13 +521,14 @@ class DominoApp(DominoTask):
     The `Domino Apps <https://docs.dominodatalab.com/en/latest/user_guide/8b094b/domino-apps/>`_ section in the Domino Documentation.
     """
 
-    def __init__(self, task_id, app_name, tier=None):
+    def __init__(self, task_id, app_name, tier=None, description=None):
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
 
         self.app_name = app_name
         self.tier = tier
+        self.description = description
 
     def status(self):
         if (self._status != DominoTask.STAT_UNSUBMITTED):
@@ -602,6 +603,7 @@ class DominoApp(DominoTask):
             "modelProductType": "APP",
             "projectId": project_id,
             "name": self.app_name,
+            "description": self.description,
             "owner": "",
             "created": time.time_ns(),
             "lastUpdated": time.time_ns(),
