@@ -14,6 +14,7 @@
 
 import logging
 import time
+import os
 
 from .api import DominoAPISession
 from .helpers import get_default_hardware_tier, get_hardware_tier_id, get_local_timezone
@@ -116,8 +117,9 @@ class DominoSchedRun(DominoTask):
             If not provided, the project's default tier is used.
     environment_id : str
             The environment ID with which to launch the job. If not provided, the project's default environment is used.
-    username : str
-            Username override. If set, the job is scheduled by the user provided. If not set, the job is scheduled by the requesting (authenticated) user.
+    submit_as_running_user : bool, default=False
+            Username override. If set, the job is scheduled by the user running the ochestrator. This is pulled from the DOMINO_STARTING_USERNAME environment variable.
+            If not set, the job is scheduled by the requesting (authenticated) user.
 
     See Also
     --------
@@ -126,7 +128,7 @@ class DominoSchedRun(DominoTask):
     The `Scheduled Jobs <https://docs.dominodatalab.com/en/latest/user_guide/5dce1f/scheduled-jobs/>`_ section in the Domino Documentation.
     """
 
-    def __init__(self, task_id, command, cron_string, title=None, tier=None, environment_id=None, username=None):
+    def __init__(self, task_id, command, cron_string, title=None, tier=None, environment_id=None, submit_as_running_user=False):
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -136,8 +138,12 @@ class DominoSchedRun(DominoTask):
         self.tier = tier
         self.cron_string = cron_string
         self.environment_id = environment_id
-        if username:
-            self.username = username
+        if submit_as_running_user:
+            self.username = os.environ["DOMINO_STARTING_USERNAME"]
+            if self.username is None:
+                self.set_status(self.STAT_FAILED)
+                self.log.error("submit_as_running_user is requested for this task, but DOMINO_STARTING_USERNAME environment variable is not set.")
+                return None
         else:
             # If no user override, just get the username of the Domino API session
             self.username = self.domino_api._routes._owner_username

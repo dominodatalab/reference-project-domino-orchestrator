@@ -366,8 +366,8 @@ class DagBuilder:
                     cron_string = c.get(task_id, "cron_string")
 
                     # Check for user override
-                    if c.has_option(task_id, "user"):
-                         domino_run_kwargs["username"] = c.get(task_id, "user")
+                    if c.has_option(task_id, "submit_as_running_user"):
+                         domino_run_kwargs["submit_as_running_user"] = c.get(task_id, "submit_as_running_user").lower() == "true"
 
                     tasks[task_id] = DominoSchedRun(task_id, command, cron_string, **domino_run_kwargs)
 
