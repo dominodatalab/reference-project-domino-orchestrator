@@ -118,8 +118,13 @@ class DominoSchedRun(DominoTask):
     environment_id : str
             The environment ID with which to launch the job. If not provided, the project's default environment is used.
     submit_as_running_user : bool, default=False
-            Username override. If set, the job is scheduled by the user running the ochestrator. This is pulled from the DOMINO_STARTING_USERNAME environment variable.
-            If not set, the job is scheduled by the requesting (authenticated) user.
+            Username override. If set, the job is scheduled by the user running the ochestrator. This is pulled from the DOMINO_STARTING_USERNAME 
+            environment variable. If not set, the job is scheduled by the requesting (authenticated) user.
+    deploy_by_name : bool
+        This will use title to try and identify a scheduled job. Avoid using this as it breaks traceability and can have 
+        unintended consequences. Employ this option only if you really know what you are doing and have a specific
+        use-case that demands it. Note, that having two scheduled jobs with the same name in the project will lead to the
+        task failing (by design).
 
     See Also
     --------
@@ -128,7 +133,7 @@ class DominoSchedRun(DominoTask):
     The `Scheduled Jobs <https://docs.dominodatalab.com/en/latest/user_guide/5dce1f/scheduled-jobs/>`_ section in the Domino Documentation.
     """
 
-    def __init__(self, task_id, command, cron_string, title=None, tier=None, environment_id=None, submit_as_running_user=False):
+    def __init__(self, task_id, command, cron_string, title=None, tier=None, environment_id=None, submit_as_running_user=False, deploy_by_name=False):
         super(self.__class__, self).__init__(task_id)
 
         self.log = logging.getLogger(__name__)
@@ -138,6 +143,7 @@ class DominoSchedRun(DominoTask):
         self.tier = tier
         self.cron_string = cron_string
         self.environment_id = environment_id
+        self.deploy_by_name = deploy_by_name
         if submit_as_running_user:
             self.username = os.environ["DOMINO_STARTING_USERNAME"]
             if self.username is None:
@@ -198,6 +204,33 @@ class DominoSchedRun(DominoTask):
             self.set_status(self.STAT_FAILED)
             self.log.error("User override set, but no user {} exists in the Domino instance.".format(self.username))
             return None
+
+        if self.deploy_by_name:
+            self.log.warn("This is a deploy_by_name regime. Trying to look up an existing job named {}".format(self.title))
+            url = self.domino_api._routes.host + "/v4/projects/" + project_id + "/scheduledjobs"
+            jobs = self.domino_api.request_manager.get(url).json()
+            job_id = None
+            for job in jobs:
+                if (job["title"] == self.title):
+                    if job_id:
+                        self.set_status(self.STAT_FAILED)
+                        self.log.error("Found multiple jobs named {}. Cannot deploy by name.")
+                        return None
+                    else:
+                        job_id = job["id"]
+                        self.log.info("Found id for job {0}: {1}".format(self.title, job_id))
+            
+            if job_id:
+                url = url + "/" + job_id
+                response = self.domino_api.request_manager.delete(url)
+                if response.status_code == 200:
+                    self.log.info("Job with id {} successfully unscheduled.".format(job_id))
+                else:
+                    self.set_status(self.STAT_FAILED)
+                    self.log.error("Unscheduling of job with id {0} failed. API response code is {1}.".format(job_id, response.status_code))
+                    return None
+            else:
+                self.log.warn("deploy_by_name is set, but no job with title {} exists.".format(self.title))
 
         # We need the local TZ for scheduling
         local_tz = get_local_timezone()

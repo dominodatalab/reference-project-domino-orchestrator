@@ -369,6 +369,10 @@ class DagBuilder:
                     if c.has_option(task_id, "submit_as_running_user"):
                          domino_run_kwargs["submit_as_running_user"] = c.get(task_id, "submit_as_running_user").lower() == "true"
 
+                    # Deploying by name?
+                    if c.has_option(task_id, "deploy_by_name"):
+                        domino_run_kwargs["deploy_by_name"] = c.get(task_id, "deploy_by_name").lower() == "true"
+
                     tasks[task_id] = DominoSchedRun(task_id, command, cron_string, **domino_run_kwargs)
 
                 else:
